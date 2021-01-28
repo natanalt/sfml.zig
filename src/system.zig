@@ -122,10 +122,10 @@ pub const Clock = struct {
     pub fn destroy(self: *Clock) void {
         c.sfClock_destroy(self.internal);
     }
-    pub fn copy(self: *Clock) !Clock {
+    pub fn copy(self: *const Clock) !Clock {
         return Clock{ .internal = c.sfClock_copy(self.internal) orelse return error.SfmlError };
     }
-    pub fn getElapsedTime(self: *Clock) Time {
+    pub fn getElapsedTime(self: *const Clock) Time {
         return .{ .internal = c.sfClock_getElapsedTime(self.internal) };
     }
     pub fn restart(self: *Clock) Time {

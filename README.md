@@ -14,4 +14,4 @@ exe.linkSystemLibrary("csfml-graphics");
 exe.linkSystemLibrary("csfml-audio");
 exe.linkSystemLibrary("csfml-network");
 exe.linkLibC();
-``
+```
