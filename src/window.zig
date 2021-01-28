@@ -47,7 +47,7 @@ pub const Context = struct {
         return c.sfContext_setActive(self.internal, @intCast(c.sfBool, @boolToInt(active))) == c.sfTrue;
     }
     pub fn getSettings(self: *const Context) ContextSettings {
-        return .{ .internal = c.sfContext_getSettings(self.internal) };
+        return ContextSettings.fromCSFML(c.sfContext_getSettings(self.internal));
     }
     pub fn getActiveContextId() u64 {
         return @intCast(u64, c.sfContext_getActiveContextId());
@@ -55,8 +55,37 @@ pub const Context = struct {
 };
 
 pub const ContextSettings = struct {
-    internal: c.sfContextSettings,
-    // TODO
+    depth_bits: c_int,
+    stencil_bits: c_int,
+    antialiasing_level: c_int,
+    major_version: c_int,
+    minor_version: c_int,
+    attribute_flags: u32,
+    srgb_capable: bool,
+
+    pub fn fromCSFML(cs: c.sfContextSettings) ContextSettings {
+        return .{
+            .depth_bits = cs.depthBits,
+            .stencil_bits = cs.stencilBits,
+            .antialiasing_level = cs.antialiasingLevel,
+            .major_version = cs.majorVersion,
+            .minor_version = cs.minorVersion,
+            .attribute_flags = cs.attributeFlags,
+            .srgb_capable = cs.sRgbCapable,
+        };
+    }
+
+    pub fn toCSFML(self: *ContextSettings) sf.ContextSettings {
+        return .{
+            .depthBits = self.depth_bits,
+            .stencilBits = self.stencil_bits,
+            .antialiasingLevel = self.antialiasing_level,
+            .majorVersion = self.major_version,
+            .minorVersion = self.minor_version,
+            .attributeFlags = self.attribute_flags,
+            .sRgbCapable = self.srgb_capable,
+        };
+    }
 };
 
 pub const CursorType = extern enum(c_int) {
