@@ -25,13 +25,17 @@ pub const clipboard = struct {
         c.sfClipboard_setString(s.ptr);
     }
     pub fn setStringAlloc(s: []const u8) !void {
-        setString((try sfml.allocator.dupeZ(u8, s)).ptr);
+        const str = try sfml.allocator.dupeZ(u8, s);
+        defer sfml.allocator.free(str);
+        setString(str);
     }
     pub fn setUnicodeString(s: [:0]const u32) void {
         c.sfClipboard_setUnicodeString(s.ptr);
     }
     pub fn setUnicodeStringAlloc(s: []const u32) !void {
-        setUnicodeString((try sfml.allocator.dupeZ(u32, s)).ptr);
+        const str = try sfml.allocator.dupeZ(u32, s);
+        defer sfml.allocator.free(str);
+        setUnicodeString(str);
     }
 };
 
@@ -202,14 +206,14 @@ pub const joystick = struct {
     pub const axis_count = c.sfJoystickAxisCount;
 
     pub const Axis = extern enum(c_int) {
-        x = sfJoystickX,
-        y = sfJoystickY,
-        z = sfJoystickZ,
-        r = sfJoystickR,
-        u = sfJoystickU,
-        v = sfJoystickV,
-        pov_x = sfJoystickPovX,
-        pov_y = sfJoystickPovY,
+        x = c.sfJoystickX,
+        y = c.sfJoystickY,
+        z = c.sfJoystickZ,
+        r = c.sfJoystickR,
+        u = c.sfJoystickU,
+        v = c.sfJoystickV,
+        pov_x = c.sfJoystickPovX,
+        pov_y = c.sfJoystickPovY,
 
         pub fn toCSFML(self: Axis) c.sfJoystickAxis {
             return @intToEnum(c.sfJoystickAxis, @enumToInt(self));
@@ -303,7 +307,6 @@ pub const event = struct {
         text_entered = c.sfEvtTextEntered,
         key_pressed = c.sfEvtKeyPressed,
         key_released = c.sfEvtKeyReleased,
-        mouse_wheel_moved = c.sfEvtMouseWheelMoved,
         mouse_wheel_scrolled = c.sfEvtMouseWheelScrolled,
         mouse_button_pressed = c.sfEvtMouseButtonPressed,
         mouse_button_released = c.sfEvtMouseButtonReleased,
@@ -324,6 +327,9 @@ pub const event = struct {
             return @intToEnum(c.sfEventType, @enumToInt(self));
         }
         pub fn fromCSFML(evt: c.sfEventType) EventType {
+            if (evt == @intToEnum(c.sfEventType, c.sfEvtMouseWheelMoved)) {
+                @panic("sf::Event::MouseWheelEvent (sfMouseWheelEvent) unsupported");
+            }
             return @intToEnum(EventType, @enumToInt(evt));
         }
     };
@@ -376,7 +382,7 @@ pub const event = struct {
         x: i32,
         y: i32,
 
-        pub fn fromCSFML(csfml: c.sfMouseEvent) MouseMoveEvent {
+        pub fn fromCSFML(csfml: c.sfMouseMoveEvent) MouseMoveEvent {
             return .{
                 .x = @intCast(i32, csfml.x),
                 .y = @intCast(i32, csfml.y),
@@ -537,14 +543,14 @@ pub const event = struct {
     };
 
     pub const SensorEvent = struct {
-        sensor_type: sensor.Type,
+        sensor_type: sensor.SensorType,
         x: f32,
         y: f32,
         z: f32,
 
         pub fn fromCSFML(csfml: c.sfSensorEvent) SensorEvent {
             return .{
-                .sensor_type = sensor.Type.fromCSFML(csfml.sensorType),
+                .sensor_type = sensor.SensorType.fromCSFML(csfml.sensorType),
                 .x = csfml.x,
                 .y = csfml.y,
                 .z = csfml.z,
@@ -587,10 +593,10 @@ pub const event = struct {
 
         pub fn fromCSFML(evt: c.sfEvent) Event {
             return switch (EventType.fromCSFML(evt.@"type")) {
-                .closed => .{},
+                .closed => .{ .closed = {} },
                 .resized => .{ .resized = SizeEvent.fromCSFML(evt.size) },
-                .lost_focus => .{},
-                .gained_focus => .{},
+                .lost_focus => .{ .lost_focus = {} },
+                .gained_focus => .{ .gained_focus = {} },
                 .text_entered => .{ .text_entered = TextEvent.fromCSFML(evt.text) },
                 .key_pressed => .{ .key_pressed = KeyEvent.fromCSFML(evt.key) },
                 .key_released => .{ .key_released = KeyEvent.fromCSFML(evt.key) },
@@ -598,8 +604,8 @@ pub const event = struct {
                 .mouse_button_pressed => .{ .mouse_button_pressed = MouseButtonEvent.fromCSFML(evt.mouseButton) },
                 .mouse_button_released => .{ .mouse_button_released = MouseButtonEvent.fromCSFML(evt.mouseButton) },
                 .mouse_moved => .{ .mouse_moved = MouseMoveEvent.fromCSFML(evt.mouseMove) },
-                .mouse_entered => .{},
-                .mouse_left => .{},
+                .mouse_entered => .{ .mouse_entered = {} },
+                .mouse_left => .{ .mouse_left = {} },
                 .joystick_button_pressed => .{ .joystick_button_pressed = JoystickButtonEvent.fromCSFML(evt.joystickButton) },
                 .joystick_button_released => .{ .joystick_button_released = JoystickButtonEvent.fromCSFML(evt.joystickButton) },
                 .joystick_moved => .{ .joystick_moved = JoystickMoveEvent.fromCSFML(evt.joystickMove) },
@@ -609,7 +615,6 @@ pub const event = struct {
                 .touch_moved => .{ .touch_moved = TouchEvent.fromCSFML(evt.touch) },
                 .touch_ended => .{ .touch_ended = TouchEvent.fromCSFML(evt.touch) },
                 .sensor_changed => .{ .sensor_changed = SensorEvent.fromCSFML(evt.sensor) },
-                else => @panic("Invalid event"),
             };
         }
         pub fn toCSFML(self: Event) c.sfEvent {
@@ -663,35 +668,35 @@ pub const Context = struct {
 };
 
 pub const ContextSettings = struct {
-    depth_bits: c_int,
-    stencil_bits: c_int,
-    antialiasing_level: c_int,
-    major_version: c_int,
-    minor_version: c_int,
-    attribute_flags: u32,
-    srgb_capable: bool,
+    depth_bits: u32 = 0,
+    stencil_bits: u32 = 0,
+    antialiasing_level: u32 = 0,
+    major_version: u32 = 1,
+    minor_version: u32 = 1,
+    attribute_flags: u32 = Window.context_attribute.default,
+    srgb_capable: bool = false,
 
     pub fn fromCSFML(cs: c.sfContextSettings) ContextSettings {
         return .{
-            .depth_bits = cs.depthBits,
-            .stencil_bits = cs.stencilBits,
-            .antialiasing_level = cs.antialiasingLevel,
-            .major_version = cs.majorVersion,
-            .minor_version = cs.minorVersion,
+            .depth_bits = @intCast(u32, cs.depthBits),
+            .stencil_bits = @intCast(u32, cs.stencilBits),
+            .antialiasing_level = @intCast(u32, cs.antialiasingLevel),
+            .major_version = @intCast(u32, cs.majorVersion),
+            .minor_version = @intCast(u32, cs.minorVersion),
             .attribute_flags = cs.attributeFlags,
-            .srgb_capable = cs.sRgbCapable,
+            .srgb_capable = cs.sRgbCapable == c.sfTrue,
         };
     }
 
-    pub fn toCSFML(self: *const ContextSettings) sf.ContextSettings {
+    pub fn toCSFML(self: *const ContextSettings) c.sfContextSettings {
         return .{
-            .depthBits = self.depth_bits,
-            .stencilBits = self.stencil_bits,
-            .antialiasingLevel = self.antialiasing_level,
-            .majorVersion = self.major_version,
-            .minorVersion = self.minor_version,
+            .depthBits = @intCast(c_uint, self.depth_bits),
+            .stencilBits = @intCast(c_uint, self.stencil_bits),
+            .antialiasingLevel = @intCast(c_uint, self.antialiasing_level),
+            .majorVersion = @intCast(c_uint, self.major_version),
+            .minorVersion = @intCast(c_uint, self.minor_version),
             .attributeFlags = self.attribute_flags,
-            .sRgbCapable = self.srgb_capable,
+            .sRgbCapable = @boolToInt(self.srgb_capable),
         };
     }
 };
@@ -743,6 +748,10 @@ pub const VideoMode = struct {
     height: u32,
     bits_per_pixel: u32,
 
+    pub fn init(w: u32, h: u32, bpp: u32) VideoMode {
+        return .{ .width = w, .height = h, .bits_per_pixel = bpp };
+    }
+
     pub fn fromCSFML(csfml: c.sfVideoMode) VideoMode {
         return .{
             .width = @intCast(u32, csfml.width),
@@ -785,7 +794,7 @@ pub const Window = struct {
         pub const resize = @intCast(u32, c.sfResize);
         pub const close = @intCast(u32, c.sfClose);
         pub const fullscreen = @intCast(u32, c.sfFullscreen);
-        pub const default_style = @intCast(u32, c.sfDefaultStyle);
+        pub const default = @intCast(u32, c.sfDefaultStyle);
     };
 
     pub const context_attribute = struct {
@@ -798,18 +807,19 @@ pub const Window = struct {
 
     pub fn create(
         mode: VideoMode,
-        title: [:0]const u8,
+        title: []const u8,
         style_flags: u32,
         settings: *const ContextSettings
-    ) Window {
-        return .{
-            .internal = c.sfWindow_create(
-                mode.toCSFML(),
-                title,
-                style_flags,
-                settings.toCSFML(),
-            ),
-        };
+    ) !Window {
+        const string = try sfml.allocator.dupeZ(u8, title);
+        defer sfml.allocator.free(string);
+        const internal = c.sfWindow_create(
+            mode.toCSFML(),
+            string,
+            style_flags,
+            &settings.toCSFML(),
+        ) orelse return error.SfmlError;
+        return Window{ .internal = internal };
     }
     
     // TODO: write implementations for functions below
@@ -818,32 +828,131 @@ pub const Window = struct {
         title: []const u32,
         style_flags: u32,
         settings: *const ContextSettings
-    ) Window {}
-    pub fn createFromHandle(handle: WindowHandle, settings: *const ContextSettings) Window {}
-    pub fn destroy(self: *Window) void {}
-    pub fn close(self: *Window) void {}
-    pub fn isOpen(self: *Window) bool {}
-    pub fn getSettings(self: *const Window) ContextSettings {}
-    pub fn pollEvent(self: *Window, evt: *event.Event) bool {}
-    pub fn waitEvent(self: *Window, evt: *event.Event) bool {}
-    pub fn getPosition(self: *const Window) system.Vector2i {}
-    pub fn setPosition(self: *Window, position: system.Vector2i) void {}
-    pub fn getSize(self: *const Window) system.Vector2u {}
-    pub fn setSize(self: *Window, size: system.Vector2u) void {}
-    pub fn setTitle(self: *Window, title: []const u8) void {}
-    pub fn setUnicodeTitle(self: *Window, title: []const u32) void {}
-    pub fn setIcon(self: *Window, w: u32, h: u32, pixels: []const u8) void {}
-    pub fn setVisible(self: *Window, visible: bool) void {}
-    pub fn setVerticalSyncEnabled(self: *Window, enabled: bool) void {}
-    pub fn setMouseCursorVisible(self: *Window, visible: bool) void {}
-    pub fn setMouseCursorGrabbed(self: *Window, grabbed: bool) void {}
-    pub fn setMouseCursor(self: *Window, cursor: *const Cursor) void {}
-    pub fn setKeyRepeatEnabled(self: *Window, enabled: bool) void {}
-    pub fn setFramerateLimit(self: *Window, limit: u32) void {}
-    pub fn setJoystickThreshold(self: *Window, threshold: f32) void {}
-    pub fn setActive(self: *Window, active: bool) bool {}
-    pub fn requestFocus(self: *Window) void {}
-    pub fn hasFocus(self: *const Window) bool {}
-    pub fn display(self: *Window) void {}
-    pub fn getSystemHandle(self: *const Window) WindowHandle {}
+    ) !Window {
+        const string = try sfml.allocator.dupeZ(u32, title);
+        defer sfml.allocator.free(string);
+        const internal = c.sfWindow_createUnicode(
+            mode.toCSFML(),
+            string,
+            style_flags,
+            settings.toCSFML(),
+        ) orelse return error.SfmlError;
+        return Window{ .internal = internal };
+    }
+
+    pub fn createFromHandle(handle: WindowHandle, settings: *const ContextSettings) !Window {
+        return Window{
+            .internal = c.sfWindow_createFromHandle(handle, settings.toCSFML()) orelse return error.SfmlError,
+        };
+    }
+    pub fn destroy(self: *Window) void {
+        c.sfWindow_destroy(self.internal);
+    }
+    pub fn close(self: *Window) void {
+        c.sfWindow_close(self.internal);
+    }
+    pub fn isOpen(self: *Window) bool {
+        return c.sfWindow_isOpen(self.internal) == c.sfTrue;
+    }
+    pub fn getSettings(self: *const Window) ContextSettings {
+        return ContextSettings.fromCSFML(c.sfWindow_getSettings(self.internal));
+    }
+    pub fn pollEvent(self: *Window, evt: *event.Event) bool {
+        var cevt: c.sfEvent = undefined;
+        var result: bool = false;
+        while (self.isOpen()) {
+            result = c.sfWindow_pollEvent(self.internal, &cevt) == c.sfTrue;
+            // This invalid event can sometimes be sent through the event queue
+            // It's not a valid event therefore it causes a crash.
+            // Ignoring it *seems* to make it work.
+            if (@enumToInt(cevt.@"type") == -1431655766) continue;
+            evt.* = event.Event.fromCSFML(cevt);
+            break;
+        }
+        return result;
+    }
+    pub fn waitEvent(self: *Window, evt: *event.Event) bool {
+        var cevt: c.sfEvent = undefined;
+        var result: bool = false;
+        while (self.isOpen()) {
+            result = c.sfWindow_waitEvent(self.internal, &cevt) == c.sfTrue;
+            // This invalid event can sometimes be sent through the event queue
+            // It's not a valid event therefore it causes a crash.
+            // Ignoring it *seems* to make it work.
+            if (@enumToInt(cevt.@"type") == -1431655766) continue;
+            evt.* = event.Event.fromCSFML(cevt);
+            break;
+        }
+        return result;
+    }
+    pub fn getPosition(self: *const Window) system.Vector2i {
+        return c.sfWindow_getPosition(self.internal);
+    }
+    pub fn setPosition(self: *Window, position: system.Vector2i) void {
+        c.sfWindow_setPosition(self.internal, position);
+    }
+    pub fn getSize(self: *const Window) system.Vector2u {
+        return c.sfWindow_getSize(self.internal);
+    }
+    pub fn setSize(self: *Window, size: system.Vector2u) void {
+        c.sfWindow_setSize(self.internal, size);
+    }
+    pub fn setTitle(self: *Window, title: []const u8) void {
+        const string = try sfml.allocator.dupeZ(u8, title);
+        defer sfml.allocator.free(string);
+        c.sfWindow_setTitle(self.internal, string);
+    }
+    pub fn setUnicodeTitle(self: *Window, title: []const u32) void {
+        const string = try sfml.allocator.dupeZ(u32, title);
+        defer sfml.allocator.free(string);
+        c.sfWindow_setTitle(self.internal, string);
+    }
+    pub fn setIcon(self: *Window, w: u32, h: u32, pixels: []const u8) void {
+        std.debug.assert(pixels.len == w * h * 4);
+        c.sfWindow_setIcon(
+            self.internal,
+            @intCast(c_uint, w),
+            @intCast(c_uint, h),
+            @ptrCast([*c]c.sfUint8, pixels.ptr),
+        );
+    }
+    pub fn setVisible(self: *Window, visible: bool) void {
+        c.sfWindow_setVisible(self.internal, @boolToInt(visible));
+    }
+    pub fn setVerticalSyncEnabled(self: *Window, enabled: bool) void {
+        c.sfWindow_setVerticalSyncEnabled(self.internal, @boolToInt(enabled));
+    }
+    pub fn setMouseCursorVisible(self: *Window, visible: bool) void {
+        c.sfWindow_setMouseCursorVisible(self.internal, @boolToInt(enabled));
+    }
+    pub fn setMouseCursorGrabbed(self: *Window, grabbed: bool) void {
+        c.sfWindow_setMouseCursorGrabbed(self.internal, @boolToInt(enabled));
+    }
+    pub fn setMouseCursor(self: *Window, cursor: *const Cursor) void {
+        c.sfWindow_setMouseCursor(self.internal, cursor.internal);
+    }
+    pub fn setKeyRepeatEnabled(self: *Window, enabled: bool) void {
+        c.sfWindow_setKeyRepeatEnabled(self.internal, @boolToInt(enabled));
+    }
+    pub fn setFramerateLimit(self: *Window, limit: u32) void {
+        c.sfWindow_setFramerateLimit(self.internal, @intCast(c_uint, limit));
+    }
+    pub fn setJoystickThreshold(self: *Window, threshold: f32) void {
+        c.sfWindow_setJoystickThreshold(self.internal, threshold);
+    }
+    pub fn setActive(self: *Window, active: bool) bool {
+        return c.sfWindow_setActive(self.internal, @boolToInt(enabled)) == c.sfTrue;
+    }
+    pub fn requestFocus(self: *Window) void {
+        c.sfWindow_requestFocus(self.internal);
+    }
+    pub fn hasFocus(self: *const Window) bool {
+        return c.sfWindow_hasFocus(self.internal) == c.sfTrue;
+    }
+    pub fn display(self: *Window) void {
+        c.sfWindow_display(self.internal);
+    }
+    pub fn getSystemHandle(self: *const Window) WindowHandle {
+        return c.sfWindow_getSystemHandle(self.internal);
+    }
 };

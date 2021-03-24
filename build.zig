@@ -1,4 +1,5 @@
-const Builder = @import("std").build.Builder;
+const std = @import("std");
+const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -6,12 +7,21 @@ pub fn build(b: *Builder) void {
 
     const exe = b.addExecutable("example", "example/main.zig");
     exe.addPackagePath("sfml", "src/sfml.zig");
+
+    if (target.isWindows()) {
+        exe.addIncludeDir("win/include");
+        exe.addLibPath("win/lib");
+    } else {
+        exe.addIncludeDir("/usr/include");
+    }
+
     exe.linkSystemLibrary("csfml-system");
     exe.linkSystemLibrary("csfml-window");
     exe.linkSystemLibrary("csfml-graphics");
     exe.linkSystemLibrary("csfml-audio");
     exe.linkSystemLibrary("csfml-network");
     exe.linkLibC();
+
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();

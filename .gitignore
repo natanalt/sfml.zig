@@ -2,3 +2,4 @@
 *.so
 *.dll
 zig-cache/
+win/
